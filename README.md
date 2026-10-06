@@ -190,6 +190,7 @@ deterministic offline mock is used.
 
 | Document | Contents |
 |---|---|
+| [`docs/run-guide.md`](docs/run-guide.md) | **Step-by-step: run the platform and the full demo** |
 | [`docs/architecture.md`](docs/architecture.md) | Components, data model, request flow |
 | [`docs/api.md`](docs/api.md) | Endpoint reference, permissions, error codes |
 | [`docs/development.md`](docs/development.md) | Dev workflow, testing, migrations |
