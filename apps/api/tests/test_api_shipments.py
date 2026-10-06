@@ -21,7 +21,7 @@ def _create(
         "/api/v1/shipments",
         json={"product": product, "version": version},
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 202, response.text
     return cast(dict[str, Any], response.json())
 
 
@@ -38,7 +38,7 @@ class TestHealth:
 
 
 class TestCreateShipment:
-    def test_create_returns_201_in_created_state(self, client: TestClient) -> None:
+    def test_create_returns_202_in_created_state(self, client: TestClient) -> None:
         body = _create(client)
         assert body["status"] == sm.CREATED
         assert body["product"] == "payment-service"

@@ -1,6 +1,7 @@
 """Test fixtures: database setup and FastAPI test client."""
 
 from collections.abc import Generator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.core.storage import InMemoryStorage
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -61,7 +63,31 @@ def db_session(engine: Engine) -> Generator[Session, None, None]:
 
 
 @pytest.fixture()
-def client(db_session: Session) -> Generator[TestClient, None, None]:
+def storage() -> InMemoryStorage:
+    """In-memory artifact storage for tests (no MinIO required)."""
+    return InMemoryStorage()
+
+
+@pytest.fixture()
+def queued_tasks(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Record task dispatches instead of hitting a real Celery broker."""
+    calls: list[Any] = []
+
+    def _fake_dispatch(shipment_id: Any) -> str:
+        calls.append(shipment_id)
+        return "test-task-id"
+
+    monkeypatch.setattr("app.core.queue.queue_processing", _fake_dispatch)
+    return calls
+
+
+@pytest.fixture()
+def client(
+    db_session: Session,
+    queued_tasks: list[Any],
+    storage: InMemoryStorage,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[TestClient, None, None]:
     def _override() -> Generator[Session, None, None]:
         try:
             yield db_session
@@ -69,6 +95,9 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
         except Exception:
             db_session.rollback()
             raise
+
+    # Tests never touch MinIO: artifact endpoints use in-memory storage.
+    monkeypatch.setattr("app.services.artifact.get_storage", lambda: storage)
 
     app.dependency_overrides[get_db] = _override
     with TestClient(app) as test_client:

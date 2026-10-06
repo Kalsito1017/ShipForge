@@ -1,5 +1,6 @@
 """Shipment business logic."""
 
+import logging
 import uuid
 
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +10,8 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.models.shipment import Shipment, ShipmentEvent
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services import state_machine
+
+logger = logging.getLogger(__name__)
 
 
 class ShipmentService:
@@ -46,6 +49,9 @@ class ShipmentService:
             )
         )
         self._session.flush()
+        # Commit before dispatching: the worker must see the row.
+        self._session.commit()
+        queue_processing(shipment)
         return shipment
 
     def get_shipment(self, shipment_id: uuid.UUID) -> Shipment:
@@ -89,19 +95,51 @@ class ShipmentService:
             event_type="RETRY",
             message="Shipment retry requested",
         )
+        self._session.commit()
         queue_processing(shipment)
         return shipment
 
+    def publish_shipment(self, shipment_id: uuid.UUID) -> tuple[Shipment, bool]:
+        """Publish a READY shipment. Idempotent: already-published is a no-op.
+
+        Returns the shipment and whether this call performed the publication.
+        """
+        shipment = self.get_shipment(shipment_id)
+
+        if shipment.status == state_machine.PUBLISHED:
+            return shipment, False
+
+        if shipment.status != state_machine.READY:
+            raise ConflictError(
+                f"Only READY shipments can be published (current: {shipment.status})",
+                shipment_id=str(shipment_id),
+                status=shipment.status,
+            )
+
+        state_machine.transition(
+            self._session,
+            shipment,
+            state_machine.PUBLISHED,
+            event_type="PUBLISHED",
+            message="Shipment published",
+        )
+        logger.info(
+            "shipment published",
+            extra={"shipment_id": str(shipment.id), "stage": state_machine.PUBLISHED},
+        )
+        return shipment, True
+
 
 def queue_processing(shipment: Shipment) -> None:
-    """Hook for enqueueing the async pipeline (Celery lands in M2).
+    """Enqueue the async pipeline for a shipment (Celery task dispatch)."""
+    from app.core.queue import queue_processing as dispatch
 
-    Currently a no-op that only logs; keep the call sites so M2 can wire the
-    task dispatch in one place.
-    """
-    import logging
-
-    logging.getLogger(__name__).info(
-        "pipeline queued (stub)",
-        extra={"shipment_id": str(shipment.id), "stage": state_machine.VALIDATING},
+    task_id = dispatch(shipment.id)
+    logger.info(
+        "pipeline dispatch requested",
+        extra={
+            "shipment_id": str(shipment.id),
+            "task_id": task_id,
+            "stage": state_machine.VALIDATING,
+        },
     )

@@ -11,6 +11,8 @@ dependencies = [
     "sqlalchemy>=2.0.36",
     "alembic>=1.14",
     "psycopg[binary]>=3.2",
+    "python-multipart>=0.0.12",
+    "minio>=7.2",
 ]
 
 [project.optional-dependencies]

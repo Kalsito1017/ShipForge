@@ -65,3 +65,8 @@ def configure_logging(service: str, level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a namespaced logger."""
+    return logging.getLogger(name)

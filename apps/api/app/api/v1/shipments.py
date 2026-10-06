@@ -16,10 +16,16 @@ def _service(db: Session = Depends(get_db)) -> ShipmentService:
     return ShipmentService(db)
 
 
-@router.post("", response_model=ShipmentRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ShipmentRead, status_code=status.HTTP_202_ACCEPTED)
 def create_shipment(
     payload: ShipmentCreate, service: ShipmentService = Depends(_service)
 ) -> ShipmentRead:
+    """Create a shipment and queue asynchronous processing.
+
+    Returns 202 Accepted: the pipeline runs in the Celery worker. Without an
+    uploaded artifact the task completes as a no-op; the artifact upload
+    re-queues processing.
+    """
     shipment = service.create_shipment(
         product=payload.product, version=payload.version, artifact_name=payload.artifact_name
     )
@@ -72,3 +78,19 @@ def retry_shipment(
     shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
 ) -> ShipmentRead:
     return ShipmentRead.model_validate(service.retry_shipment(shipment_id))
+
+
+@router.post(
+    "/{shipment_id}/publish",
+    response_model=ShipmentRead,
+    status_code=status.HTTP_200_OK,
+)
+def publish_shipment(
+    shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
+) -> ShipmentRead:
+    """Publish a READY shipment. Idempotent: safe to call repeatedly.
+
+    Returns 200 with the shipment; if already published, nothing changes.
+    """
+    shipment, _published = service.publish_shipment(shipment_id)
+    return ShipmentRead.model_validate(shipment)
