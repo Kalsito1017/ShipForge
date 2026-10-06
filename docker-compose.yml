@@ -1,5 +1,20 @@
 name: shipforge
 
+x-app-base: &app-base
+  env_file: .env
+  environment: &app-env
+    DATABASE_URL: postgresql+psycopg://shipment:shipment@postgres:5432/shipment
+    REDIS_URL: redis://redis:6379/0
+    MINIO_ENDPOINT: minio:9000
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+  tmpfs:
+    - /tmp
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,21 +26,27 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U shipment -d shipment"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   minio:
     # Real MinIO server (Bitnami packaging; the minio/minio Hub repo is archived
@@ -43,11 +64,14 @@ services:
     depends_on:
       minio-permissions:
         condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   minio-permissions:
     # One-shot chown so the non-root MinIO process can write its volume.
@@ -58,14 +82,10 @@ services:
       - minio_data:/data
 
   api:
+    <<: *app-base
     build:
       context: .
       dockerfile: infrastructure/docker/api.Dockerfile
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://shipment:shipment@postgres:5432/shipment
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: minio:9000
     ports:
       - "8000:8000"
     depends_on:
@@ -75,16 +95,20 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
 
   worker:
+    <<: *app-base
     build:
       context: .
       dockerfile: infrastructure/docker/worker.Dockerfile
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://shipment:shipment@postgres:5432/shipment
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: minio:9000
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,6 +116,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
 
 volumes:
   postgres_data:

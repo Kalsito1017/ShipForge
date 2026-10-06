@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f infrastructure/docker/api.Dockerfile -t shipforge-api:${{ github.sha }} .
+
+      - name: Build Worker image
+        run: docker build -f infrastructure/docker/worker.Dockerfile -t shipforge-worker:${{ github.sha }} .
+
+      - name: Scan API image (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: shipforge-api:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Scan Worker image (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: shipforge-worker:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Export image digests
+        run: |
+          docker images --digests | grep shipforge
