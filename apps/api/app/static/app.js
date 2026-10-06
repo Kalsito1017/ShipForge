@@ -342,7 +342,7 @@ $("login-form").addEventListener("submit", async (e) => {
   const errEl = $("login-error");
   errEl.hidden = true;
   try {
-    await login($("login-username").value.trim(), $("login-password").value);
+    await login($("login-username").value.trim(), $("login-password").value.trim());
   } catch (err) {
     errEl.textContent = err.message;
     errEl.hidden = false;
