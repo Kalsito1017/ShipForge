@@ -1,8 +1,9 @@
-"""Health and readiness endpoints."""
+"""Health, readiness and Prometheus metrics endpoints."""
 
 from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
+from app.core.metrics import render_metrics
 from app.db.session import get_engine
 
 router = APIRouter()
@@ -24,3 +25,10 @@ def ready(response: Response) -> dict[str, str]:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "unavailable"}
     return {"status": "ok"}
+
+
+@router.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    """Prometheus metrics exposition."""
+    payload, content_type = render_metrics()
+    return Response(content=payload, media_type=content_type)

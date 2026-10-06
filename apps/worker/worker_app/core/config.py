@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
+    metrics_port: int = 9100
 
     database_url: str = "postgresql+psycopg://shipment:shipment@localhost:5432/shipment"
     redis_url: str = "redis://localhost:6379/0"

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.metrics import shipments_created_total, shipments_published_total
 from app.models.shipment import Shipment, ShipmentEvent
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services import state_machine
@@ -51,6 +52,7 @@ class ShipmentService:
         self._session.flush()
         # Commit before dispatching: the worker must see the row.
         self._session.commit()
+        shipments_created_total.inc()
         queue_processing(shipment)
         return shipment
 
@@ -123,6 +125,7 @@ class ShipmentService:
             event_type="PUBLISHED",
             message="Shipment published",
         )
+        shipments_published_total.inc()
         logger.info(
             "shipment published",
             extra={"shipment_id": str(shipment.id), "stage": state_machine.PUBLISHED},

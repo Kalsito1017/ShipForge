@@ -14,12 +14,18 @@ Stage mapping (stage name -> status it runs in -> next status):
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import InvalidTransitionError
 from app.core.logging import get_logger
+from app.core.metrics import (
+    shipment_processing_duration_seconds,
+    shipments_failed_total,
+    shipments_published_total,
+)
 from app.core.storage import ArtifactStorage
 from app.models.shipment import Shipment
 from app.services import state_machine as sm
@@ -115,6 +121,10 @@ class PipelineRunner:
                     result.error_code or "INTERNAL_ERROR",
                     result.error_message or "stage failed",
                 )
+                shipments_failed_total.labels(
+                    stage=result.stage,
+                    error_code=result.error_code or "INTERNAL_ERROR",
+                ).inc()
                 return {
                     "shipment_id": str(shipment.id),
                     "outcome": "failed",
@@ -135,11 +145,25 @@ class PipelineRunner:
                 context={"completed_stage": status_name},
             )
 
+        if shipment.status == sm.PUBLISHED:
+            shipments_published_total.inc()
+            self._observe_duration(shipment)
         return {
             "shipment_id": str(shipment.id),
             "outcome": "published" if shipment.status == sm.PUBLISHED else shipment.status,
             "stages": results,
         }
+
+    def _observe_duration(self, shipment: Shipment) -> None:
+        """Record end-to-end processing duration when known."""
+        if shipment.created_at is None:
+            return
+        created = shipment.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        elapsed = (datetime.now(timezone.utc) - created).total_seconds()
+        if elapsed >= 0:
+            shipment_processing_duration_seconds.observe(elapsed)
 
     def _advance(
         self,

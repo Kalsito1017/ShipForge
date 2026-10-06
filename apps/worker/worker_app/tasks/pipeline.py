@@ -10,12 +10,22 @@ from app.core.storage import get_storage
 from app.db.session import get_session_factory
 from worker_app.celery_app import celery_app
 from worker_app.core.config import get_settings
+from worker_app.observability import (
+    register_task_signals,
+    start_metrics_server,
+    start_queue_monitor,
+)
 from worker_app.services.pipeline import PipelineRunner
 
 logger = get_logger(__name__)
 
 _settings = get_settings()
 configure_logging(service="shipforge-worker", level=_settings.log_level)
+
+# Observability: Prometheus exposition + queue depth + task counters.
+start_metrics_server(_settings.metrics_port)
+start_queue_monitor(_settings.redis_url)
+register_task_signals()
 
 
 def _run_in_session(shipment_id: str) -> dict[str, Any]:
