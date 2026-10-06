@@ -11,20 +11,21 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install Python dependencies
-	$(PY) -m pip install --upgrade pip
-	$(PY) -m pip install -e "apps/api[dev]" -e "apps/worker[dev]"
+	$(PY) -m venv .venv
+	.venv/bin/pip install --upgrade pip
+	.venv/bin/pip install -e "apps/api[dev]" -e "apps/worker[dev]"
 
 test: ## Run the test suite
-	$(PY) -m pytest
+	.venv/bin/python -m pytest
 
 lint: ## Lint with ruff
-	$(PY) -m ruff check .
+	.venv/bin/python -m ruff check .
 
 format: ## Format code with ruff
-	$(PY) -m ruff format .
+	.venv/bin/python -m ruff format .
 
 typecheck: ## Type check with mypy
-	$(PY) -m mypy apps
+	.venv/bin/python -m mypy apps
 
 dev: ## Start development environment (Docker Compose)
 	$(COMPOSE) up -d
@@ -55,10 +56,10 @@ status: ## Show service status
 	@kubectl get pods 2>/dev/null || true
 
 migrate: ## Apply database migrations
-	alembic upgrade head
+	cd apps/api && ../../.venv/bin/python -m alembic upgrade head
 
 migration: ## Create a new migration (usage: make migration m="description")
-	alembic revision --autogenerate -m "$(m)"
+	cd apps/api && ../../.venv/bin/python -m alembic revision --autogenerate -m "$(m)"
 
 clean: ## Remove build/test artifacts
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
