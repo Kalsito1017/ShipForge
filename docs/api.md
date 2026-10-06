@@ -83,6 +83,7 @@ Error codes: `VALIDATION_ERROR`, `ARTIFACT_MISSING`, `ARTIFACT_TOO_LARGE`,
 | GET | `/api/v1/shipments` | `shipment:read` | 200 `ShipmentList` |
 | GET | `/api/v1/shipments/{id}` | `shipment:read` | 200 `ShipmentRead` |
 | GET | `/api/v1/shipments/{id}/events` | `shipment:read` | 200 `[ShipmentEventRead]` |
+| GET | `/api/v1/shipments/{id}/logs` | `shipment:read` | 200 `ShipmentLogList` |
 | POST | `/api/v1/shipments/{id}/retry` | `shipment:retry` | 202 `ShipmentRead` |
 | POST | `/api/v1/shipments/{id}/publish` | `shipment:publish` | 200 `ShipmentRead` |
 
@@ -92,6 +93,10 @@ Duplicate `(product, version)` → `409 CONFLICT`. Invalid input → `422`.
 
 **GET /api/v1/shipments** — query params: `product`, `status`, `limit` (1–100,
 default 20), `offset`. Returns `{"items": [...], "total": n, "limit": n, "offset": n}`.
+
+**GET .../logs** — query params: `limit` (1–1000, default 200), `offset`.
+Returns `{"items": [{stage, level, message, context, created_at}], "total",
+"limit", "offset"}` — the structured pipeline log lines for troubleshooting.
 
 **POST .../retry** — only `FAILED` shipments; transitions `FAILED -> VALIDATING`
 and re-queues. Otherwise `409 CONFLICT`.

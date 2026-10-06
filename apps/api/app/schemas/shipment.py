@@ -46,6 +46,29 @@ class ShipmentEventRead(BaseModel):
     created_at: datetime
 
 
+class ShipmentLogRead(BaseModel):
+    """A structured log line from a pipeline stage."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    shipment_id: uuid.UUID
+    stage: str | None
+    level: str
+    message: str
+    context: dict[str, Any] | None
+    created_at: datetime
+
+
+class ShipmentLogList(BaseModel):
+    """Paginated log listing."""
+
+    items: list[ShipmentLogRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class ShipmentList(BaseModel):
     """Paginated shipment listing."""
 

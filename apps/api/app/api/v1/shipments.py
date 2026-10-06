@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import AuthenticatedUser, require
 from app.db.session import get_db
-from app.schemas.shipment import ShipmentCreate, ShipmentEventRead, ShipmentList, ShipmentRead
+from app.schemas.shipment import (
+    ShipmentCreate,
+    ShipmentEventRead,
+    ShipmentList,
+    ShipmentLogList,
+    ShipmentLogRead,
+    ShipmentRead,
+)
 from app.services.shipment import ShipmentService
 
 router = APIRouter()
@@ -75,6 +82,24 @@ def get_shipment_events(
 ) -> list[ShipmentEventRead]:
     events = service.get_events(shipment_id)
     return [ShipmentEventRead.model_validate(event) for event in events]
+
+
+@router.get("/{shipment_id}/logs", response_model=ShipmentLogList)
+def get_shipment_logs(
+    shipment_id: uuid.UUID,
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:read")),
+) -> ShipmentLogList:
+    """Return structured pipeline logs for a shipment."""
+    logs, total = service.get_logs(shipment_id, limit=limit, offset=offset)
+    return ShipmentLogList(
+        items=[ShipmentLogRead.model_validate(entry) for entry in logs],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post(

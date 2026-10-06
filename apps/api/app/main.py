@@ -2,9 +2,12 @@
 
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from time import monotonic
 
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import health
 from app.api.v1.router import api_router
@@ -67,7 +70,18 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix="/api/v1")
     # Health/readiness/metrics also served at root per PLAN.md §9.
     app.include_router(health.router, include_in_schema=False)
+    _mount_dashboard(app)
     return app
+
+
+def _mount_dashboard(app: FastAPI) -> None:
+    """Serve the shipment dashboard at / (static assets at /static)."""
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def dashboard() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
 
 app = create_app()

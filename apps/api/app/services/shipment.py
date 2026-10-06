@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.metrics import shipments_created_total, shipments_published_total
-from app.models.shipment import Shipment, ShipmentEvent
+from app.models.shipment import Shipment, ShipmentEvent, ShipmentLog
 from app.repositories.shipment_repository import ShipmentRepository
 from app.services import state_machine
 
@@ -84,6 +84,13 @@ class ShipmentService:
         """Return the ordered event trail for a shipment."""
         self.get_shipment(shipment_id)
         return self._repo.list_events(shipment_id)
+
+    def get_logs(
+        self, shipment_id: uuid.UUID, *, limit: int = 200, offset: int = 0
+    ) -> tuple[list[ShipmentLog], int]:
+        """Return structured log lines for a shipment."""
+        self.get_shipment(shipment_id)
+        return self._repo.list_logs(shipment_id, limit=limit, offset=offset)
 
     def retry_shipment(self, shipment_id: uuid.UUID) -> Shipment:
         """Move a FAILED shipment back to VALIDATING and queue processing."""

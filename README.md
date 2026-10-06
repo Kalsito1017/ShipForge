@@ -14,6 +14,8 @@ system is engineered as if it were going to a real enterprise cluster.
 
 ## Features
 
+- **Web dashboard** — shipments table, event timeline, pipeline logs,
+  upload/retry/publish/AI-analyze actions (vanilla JS, served by the API)
 - **Shipment lifecycle** — explicit state machine (`CREATED -> VALIDATING ->
   BUILDING -> SCANNING -> READY -> PUBLISHED`, or `FAILED`) with a full event
   trail per shipment
@@ -86,8 +88,8 @@ make migrate            # apply migrations (seeds development users)
 python3 scripts/smoke_compose.py
 ```
 
-API: `http://localhost:8000` — interactive docs at `/docs`,
-health at `/health`, readiness at `/ready`, metrics at `/metrics`.
+API: `http://localhost:8000` — **web dashboard at `/`**, interactive docs
+at `/docs`, health at `/health`, readiness at `/ready`, metrics at `/metrics`.
 
 Get a token (seeded dev users: `developer/developer`,
 `release_manager/release_manager`, `admin/admin`):

@@ -171,3 +171,46 @@ class TestRetry:
     def test_retry_missing_404(self, client: TestClient) -> None:
         response = client.post("/api/v1/shipments/00000000-0000-0000-0000-000000000000/retry")
         assert response.status_code == 404
+
+
+class TestLogs:
+    def test_logs_empty_for_new_shipment(self, client: TestClient) -> None:
+        created = _create(client)
+        response = client.get(f"/api/v1/shipments/{created['id']}/logs")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 0
+        assert body["items"] == []
+
+    def test_logs_returned_after_upload(self, client: TestClient) -> None:
+        import io
+        import tarfile
+
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as archive:
+            info = tarfile.TarInfo(name="main.py")
+            data = b"x\n"
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+        created = _create(client)
+        upload = client.post(
+            f"/api/v1/shipments/{created['id']}/artifact",
+            files={"file": ("logs-case.tar.gz", buf.getvalue(), "application/gzip")},
+        )
+        assert upload.status_code == 202
+
+        body = client.get(f"/api/v1/shipments/{created['id']}/logs").json()
+        assert body["total"] >= 1
+        assert any(entry["stage"] == "UPLOAD" for entry in body["items"])
+
+    def test_logs_404_for_missing_shipment(self, client: TestClient) -> None:
+        response = client.get("/api/v1/shipments/00000000-0000-0000-0000-000000000000/logs")
+        assert response.status_code == 404
+
+    def test_logs_pagination(self, client: TestClient) -> None:
+        created = _create(client)
+        response = client.get(
+            f"/api/v1/shipments/{created['id']}/logs", params={"limit": 5, "offset": 0}
+        )
+        assert response.status_code == 200
+        assert response.json()["limit"] == 5

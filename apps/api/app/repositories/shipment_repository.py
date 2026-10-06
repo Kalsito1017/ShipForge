@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
-from app.models.shipment import Shipment, ShipmentEvent
+from app.models.shipment import Shipment, ShipmentEvent, ShipmentLog
 
 
 class ShipmentRepository:
@@ -42,6 +42,26 @@ class ShipmentRepository:
         total = self._session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = self._session.scalars(
             stmt.order_by(Shipment.created_at.desc()).limit(limit).offset(offset)
+        ).all()
+        return list(rows), int(total)
+
+    def list_logs(
+        self, shipment_id: uuid.UUID, *, limit: int = 200, offset: int = 0
+    ) -> tuple[list[ShipmentLog], int]:
+        """Return structured log lines for a shipment with pagination."""
+        from sqlalchemy import func, select
+
+        total = self._session.scalar(
+            select(func.count()).select_from(ShipmentLog).where(
+                ShipmentLog.shipment_id == shipment_id
+            )
+        ) or 0
+        rows = self._session.scalars(
+            select(ShipmentLog)
+            .where(ShipmentLog.shipment_id == shipment_id)
+            .order_by(ShipmentLog.created_at.asc())
+            .limit(limit)
+            .offset(offset)
         ).all()
         return list(rows), int(total)
 

@@ -23,10 +23,11 @@ Step 11 Watch the pipeline publish it
 Step 12 Inspect events and download the artifact
 Step 13 Prove idempotency (publish is safe to repeat)
 Step 14 Inject a failure -> AI analysis -> retry
-Step 15 Metrics and Grafana dashboards
-Step 16 Run the test suite
-Step 17 (Optional) Kubernetes: kind + Helm
-Step 18 Stop / clean up
+Step 15 The web dashboard
+Step 16 Metrics and Grafana dashboards
+Step 17 Run the test suite
+Step 18 (Optional) Kubernetes: kind + Helm
+Step 19 Stop / clean up
 ```
 
 ---
@@ -456,7 +457,25 @@ curl -s -H "Authorization: Bearer $TOKEN" \
   | python3 -c 'import json,sys; [print(e["event_type"], "-", e["message"]) for e in json.load(sys.stdin)]'
 ```
 
-## Step 15 — Metrics and dashboards
+## Step 15 — The web dashboard
+
+Open the dashboard in a browser (or just open the URL):
+
+```bash
+xdg-open http://localhost:8000   # or open http://localhost:8000 manually
+```
+
+Sign in with `admin` / `admin`. The dashboard shows:
+
+- the shipments table with color-coded status badges, product/status filters
+  and auto-refresh
+- a detail panel with the **event timeline**, **pipeline logs** and artifact
+  download
+- actions: create shipment, upload artifact, retry, publish, **Analyze with AI**
+
+Everything the run guide does via curl can be done by clicking here instead.
+
+## Step 16 — Metrics and dashboards
 
 Application metrics (Prometheus format):
 
