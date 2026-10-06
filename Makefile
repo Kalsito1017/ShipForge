@@ -1,5 +1,5 @@
 .PHONY: install test lint format typecheck dev dev-down cluster cluster-delete \
-        build deploy undeploy logs status migrate migration clean help
+        build deploy undeploy logs status migrate migration clean manifests help
 
 PY ?= python3
 COMPOSE ?= docker compose
@@ -47,6 +47,13 @@ deploy: ## Deploy to local Kubernetes (Helm)
 
 undeploy: ## Remove the Helm deployment
 	helm uninstall $(HELM_RELEASE)
+
+manifests: ## Render raw Kubernetes manifests from the Helm chart
+	mkdir -p infrastructure/kubernetes/rendered
+	helm template $(HELM_RELEASE) $(HELM_CHART) \
+		--values $(HELM_CHART)/values-local.yaml \
+		> infrastructure/kubernetes/rendered/shipforge.yaml
+	@echo "rendered -> infrastructure/kubernetes/rendered/shipforge.yaml"
 
 logs: ## Tail service logs
 	$(COMPOSE) logs -f

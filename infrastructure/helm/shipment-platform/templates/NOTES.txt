@@ -1,0 +1,28 @@
+ShipForge {{ .Chart.AppVersion }} deployed as release {{ .Release.Name }}.
+
+Components:
+  API      {{ include "shipment-platform.api.fullname" . }}
+  Worker   {{ include "shipment-platform.worker.fullname" . }}
+  Postgres {{ include "shipment-platform.postgres.fullname" . }} ({{ .Values.postgres.persistence.enabled | ternary "persistent" "ephemeral" }})
+  Redis    {{ include "shipment-platform.redis.fullname" . }}
+  MinIO    {{ include "shipment-platform.minio.fullname" . }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress:
+  host: {{ .Values.ingress.host }}
+
+  Local access (kind maps ingress to localhost:18080):
+    curl -H "Host: {{ .Values.ingress.host }}" http://localhost:18080/health
+    curl -H "Host: {{ .Values.ingress.host }}" http://localhost:18080/api/v1/shipments
+
+  Or add to /etc/hosts:
+    127.0.0.1 {{ .Values.ingress.host }}
+{{- end }}
+
+Check status:
+  kubectl get pods
+  ./scripts/health-check.sh
+
+Run migrations (first deploy):
+  kubectl exec deploy/{{ include "shipment-platform.api.fullname" . }} -- python -m alembic upgrade head

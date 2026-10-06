@@ -1,0 +1,811 @@
+---
+# Source: shipment-platform/templates/secret.yaml
+# Local development secrets. In a real environment use an external secret
+# manager (Vault, cloud KMS) or sealed-secrets — never commit real values.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shipment-platform-shipment-platform-secrets
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+type: Opaque
+stringData:
+  POSTGRES_PASSWORD: "shipment"
+  MINIO_ACCESS_KEY: "minioadmin"
+  MINIO_SECRET_KEY: "minioadmin"
+  JWT_SECRET: "change-me-locally"
+  LLM_API_KEY: ""
+---
+# Source: shipment-platform/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shipment-platform-shipment-platform-config
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+data:
+  APP_ENV: "local"
+  LOG_LEVEL: "INFO"
+  POSTGRES_USER: "shipment"
+  POSTGRES_DB: "shipment"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRES_MINUTES: "60"
+  LLM_BASE_URL: "https://api.openai.com/v1"
+  LLM_MODEL: "gpt-4o-mini"
+  LLM_TIMEOUT_SECONDS: "30"
+  ARTIFACT_MAX_SIZE_MB: "100"
+---
+# Source: shipment-platform/templates/minio.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shipment-platform-shipment-platform-minio-data
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: minio
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: shipment-platform/templates/postgres.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shipment-platform-shipment-platform-postgres-data
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: postgres
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Source: shipment-platform/templates/api-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-platform-shipment-platform-api
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+---
+# Source: shipment-platform/templates/minio.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-platform-shipment-platform-minio
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: minio
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/component: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: s3
+      protocol: TCP
+    - name: console
+      port: 9001
+      targetPort: console
+      protocol: TCP
+---
+# Source: shipment-platform/templates/postgres.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-platform-shipment-platform-postgres
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+# Source: shipment-platform/templates/redis.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipment-platform-shipment-platform-redis
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+---
+# Source: shipment-platform/templates/api-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipment-platform-shipment-platform-api
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipment-platform
+      app.kubernetes.io/instance: shipment-platform
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shipment-platform
+        app.kubernetes.io/instance: shipment-platform
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: "shipforge-api:local"
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: APP_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LOG_LEVEL
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@shipment-platform-shipment-platform-postgres:5432/$(POSTGRES_DB)"
+            - name: REDIS_URL
+              value: "redis://shipment-platform-shipment-platform-redis:6379/0"
+            - name: MINIO_ENDPOINT
+              value: "shipment-platform-shipment-platform-minio:9000"
+            - name: MINIO_SECURE
+              value: "false"
+            - name: MINIO_BUCKET
+              value: "artifacts"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_SECRET_KEY
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: JWT_SECRET
+            - name: JWT_ALGORITHM
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: JWT_ALGORITHM
+            - name: JWT_EXPIRES_MINUTES
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: JWT_EXPIRES_MINUTES
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: LLM_API_KEY
+            - name: LLM_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_BASE_URL
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_MODEL
+            - name: LLM_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_TIMEOUT_SECONDS
+            - name: ARTIFACT_MAX_SIZE_MB
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: ARTIFACT_MAX_SIZE_MB
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # Drain in-flight requests before SIGTERM (graceful shutdown).
+                command: ["sleep", "5"]
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Source: shipment-platform/templates/redis.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipment-platform-shipment-platform-redis
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipment-platform
+      app.kubernetes.io/instance: shipment-platform
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shipment-platform
+        app.kubernetes.io/instance: shipment-platform
+        app.kubernetes.io/component: redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          # Broker role only: no persistence. Keeps the rootfs read-only
+          # (RDB writes fail on a read-only filesystem -> MISCONF errors).
+          command: ["redis-server", "--save", "", "--appendonly", "no"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Source: shipment-platform/templates/worker-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipment-platform-shipment-platform-worker
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipment-platform
+      app.kubernetes.io/instance: shipment-platform
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shipment-platform
+        app.kubernetes.io/instance: shipment-platform
+        app.kubernetes.io/component: worker
+    spec:
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+      # Celery warm shutdown: SIGTERM stops new task delivery and finishes
+      # in-flight tasks before exit.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: "shipforge-worker:local"
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          # Image has no ENTRYPOINT — set the full command explicitly.
+          command:
+            - celery
+            - -A
+            - worker_app.main.celery_app
+            - worker
+            - --loglevel=INFO
+            - --concurrency=2
+          env:
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: APP_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LOG_LEVEL
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@shipment-platform-shipment-platform-postgres:5432/$(POSTGRES_DB)"
+            - name: REDIS_URL
+              value: "redis://shipment-platform-shipment-platform-redis:6379/0"
+            - name: MINIO_ENDPOINT
+              value: "shipment-platform-shipment-platform-minio:9000"
+            - name: MINIO_SECURE
+              value: "false"
+            - name: MINIO_BUCKET
+              value: "artifacts"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_SECRET_KEY
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: JWT_SECRET
+            - name: JWT_ALGORITHM
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: JWT_ALGORITHM
+            - name: JWT_EXPIRES_MINUTES
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: JWT_EXPIRES_MINUTES
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: LLM_API_KEY
+            - name: LLM_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_BASE_URL
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_MODEL
+            - name: LLM_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: LLM_TIMEOUT_SECONDS
+            - name: ARTIFACT_MAX_SIZE_MB
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: ARTIFACT_MAX_SIZE_MB
+          readinessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - worker_app.main.celery_app
+                - inspect
+                - ping
+                - --timeout=10
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - worker_app.main.celery_app
+                - inspect
+                - ping
+                - --timeout=10
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Source: shipment-platform/templates/minio.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shipment-platform-shipment-platform-minio
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: shipment-platform-shipment-platform-minio
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipment-platform
+      app.kubernetes.io/instance: shipment-platform
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shipment-platform
+        app.kubernetes.io/instance: shipment-platform
+        app.kubernetes.io/component: minio
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        # fsGroup makes kubelet chown the volume — no root init container
+        # needed (and pod security forbids running as root anyway).
+        fsGroup: 1001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: minio
+          image: bitnamilegacy/minio:latest
+          imagePullPolicy: IfNotPresent
+          args: ["server", "/data", "--console-address", ":9001"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: s3
+              containerPort: 9000
+              protocol: TCP
+            - name: console
+              containerPort: 9001
+              protocol: TCP
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: MINIO_SECRET_KEY
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: shipment-platform-shipment-platform-minio-data
+---
+# Source: shipment-platform/templates/postgres.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shipment-platform-shipment-platform-postgres
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: shipment-platform-shipment-platform-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipment-platform
+      app.kubernetes.io/instance: shipment-platform
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shipment-platform
+        app.kubernetes.io/instance: shipment-platform
+        app.kubernetes.io/component: postgres
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: shipment-platform-shipment-platform-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shipment-platform-shipment-platform-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "$(POSTGRES_DB)"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: shipment-platform-shipment-platform-postgres-data
+---
+# Source: shipment-platform/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shipment-platform-shipment-platform
+  labels:
+    app.kubernetes.io/name: shipment-platform
+    app.kubernetes.io/instance: shipment-platform
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: shipment-platform-0.1.0
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "shipforge.local"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: shipment-platform-shipment-platform-api
+                port:
+                  number: 8000

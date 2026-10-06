@@ -1,0 +1,55 @@
+# Local kind deployment: images preloaded into the cluster, host-based
+# ingress on localhost:8080 (see infrastructure/kubernetes/kind-config.yaml).
+#
+#   helm upgrade --install shipment-platform ./infrastructure/helm/shipment-platform \
+#     --values ./infrastructure/helm/shipment-platform/values-local.yaml
+
+image:
+  api:
+    repository: shipforge-api
+    tag: local
+    pullPolicy: Never # preloaded with `kind load`
+  worker:
+    repository: shipforge-worker
+    tag: local
+    pullPolicy: Never
+
+config:
+  appEnv: local
+  logLevel: INFO
+
+ingress:
+  enabled: true
+  className: nginx
+  host: shipforge.local
+
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+worker:
+  replicas: 1
+  # Celery prefork + Python runtime needs headroom (OOMKilled at 256Mi).
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+postgres:
+  persistence:
+    enabled: true
+    size: 1Gi
+
+minio:
+  persistence:
+    enabled: true
+    size: 1Gi

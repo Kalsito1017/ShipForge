@@ -1,0 +1,29 @@
+# Development environment overrides (Docker Compose-like resources).
+config:
+  appEnv: development
+  logLevel: DEBUG
+
+api:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+worker:
+  replicas: 1
+  concurrency: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  host: shipforge-dev.local

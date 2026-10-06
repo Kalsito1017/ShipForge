@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shipment-platform
+description: Local software shipment platform — API, Worker, PostgreSQL, Redis, MinIO, Ingress
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
