@@ -28,6 +28,8 @@ system is engineered as if it were going to a real enterprise cluster.
 - **AI incident assistant** — advisory-only LLM analysis of failures with
   Pydantic-validated structured output (offline mock mode when no API key)
 - **AuthN/AuthZ** — JWT with `developer`, `release_manager`, `admin` roles
+- **JWT auth** — `developer` / `release_manager` / `admin` roles with an
+  explicit permission matrix; bcrypt password hashing
 - **Observability** — Prometheus metrics, Grafana dashboards, structured JSON
   logs
 - **Production practices** — migrations, health/readiness probes, graceful
@@ -74,15 +76,27 @@ system is engineered as if it were going to a real enterprise cluster.
 git clone <this-repo> shipforge
 cd shipforge
 
-cp .env.example .env    # fill in JWT_SECRET (and LLM_API_KEY if desired)
+cp .env.example .env    # JWT_SECRET=openssl rand -hex 32 (LLM_API_KEY optional)
 
 make install            # install Python dependencies
-make dev                # start API, Worker, PostgreSQL, Redis, MinIO
-make migrate            # apply database migrations
+make dev                # start API, Worker, PostgreSQL, Redis, MinIO, monitoring
+make migrate            # apply migrations (seeds development users)
+
+# end-to-end verification: login -> upload -> publish -> failure -> retry -> AI
+python3 scripts/smoke_compose.py
 ```
 
 API: `http://localhost:8000` — interactive docs at `/docs`,
-health at `/health`, readiness at `/ready`.
+health at `/health`, readiness at `/ready`, metrics at `/metrics`.
+
+Get a token (seeded dev users: `developer/developer`,
+`release_manager/release_manager`, `admin/admin`):
+
+```bash
+curl -s -X POST localhost:8000/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"admin"}'
+```
 
 ## Configuration
 
@@ -138,6 +152,16 @@ make migration      Create a new migration
 make clean          Remove build/test artifacts
 ```
 
+## Monitoring
+
+| Tool | URL | Credentials |
+|---|---|---|
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | admin / shipforge |
+
+The "ShipForge Overview" dashboard is provisioned automatically (shipment
+lifecycle, processing durations, API latency, worker tasks, queue depth).
+
 ## Testing
 
 - **Unit tests** — state machine, validation, business logic, idempotency
@@ -161,6 +185,17 @@ diagnosis: category, root cause, confidence, severity, and recommendations —
 validated with Pydantic. The assistant is **advisory only**: it never executes
 commands, modifies infrastructure, or deploys anything. Without `LLM_API_KEY` a
 deterministic offline mock is used.
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Components, data model, request flow |
+| [`docs/api.md`](docs/api.md) | Endpoint reference, permissions, error codes |
+| [`docs/development.md`](docs/development.md) | Dev workflow, testing, migrations |
+| [`docs/deployment.md`](docs/deployment.md) | Compose and kind/Helm deployment |
+| [`docs/security.md`](docs/security.md) | Security controls and limitations |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Incident runbooks |
 
 ## Troubleshooting
 
