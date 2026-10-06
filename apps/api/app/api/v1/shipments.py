@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, require
 from app.db.session import get_db
 from app.schemas.shipment import ShipmentCreate, ShipmentEventRead, ShipmentList, ShipmentRead
 from app.services.shipment import ShipmentService
@@ -18,7 +19,9 @@ def _service(db: Session = Depends(get_db)) -> ShipmentService:
 
 @router.post("", response_model=ShipmentRead, status_code=status.HTTP_202_ACCEPTED)
 def create_shipment(
-    payload: ShipmentCreate, service: ShipmentService = Depends(_service)
+    payload: ShipmentCreate,
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:create")),
 ) -> ShipmentRead:
     """Create a shipment and queue asynchronous processing.
 
@@ -39,6 +42,7 @@ def list_shipments(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:read")),
 ) -> ShipmentList:
     items, total = service.list_shipments(
         product=product, status=shipment_status, limit=limit, offset=offset
@@ -53,7 +57,9 @@ def list_shipments(
 
 @router.get("/{shipment_id}", response_model=ShipmentRead)
 def get_shipment(
-    shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
+    shipment_id: uuid.UUID,
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:read")),
 ) -> ShipmentRead:
     return ShipmentRead.model_validate(service.get_shipment(shipment_id))
 
@@ -63,7 +69,9 @@ def get_shipment(
     response_model=list[ShipmentEventRead],
 )
 def get_shipment_events(
-    shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
+    shipment_id: uuid.UUID,
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:read")),
 ) -> list[ShipmentEventRead]:
     events = service.get_events(shipment_id)
     return [ShipmentEventRead.model_validate(event) for event in events]
@@ -75,7 +83,9 @@ def get_shipment_events(
     status_code=status.HTTP_202_ACCEPTED,
 )
 def retry_shipment(
-    shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
+    shipment_id: uuid.UUID,
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:retry")),
 ) -> ShipmentRead:
     return ShipmentRead.model_validate(service.retry_shipment(shipment_id))
 
@@ -86,7 +96,9 @@ def retry_shipment(
     status_code=status.HTTP_200_OK,
 )
 def publish_shipment(
-    shipment_id: uuid.UUID, service: ShipmentService = Depends(_service)
+    shipment_id: uuid.UUID,
+    service: ShipmentService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:publish")),
 ) -> ShipmentRead:
     """Publish a READY shipment. Idempotent: safe to call repeatedly.
 

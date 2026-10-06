@@ -27,9 +27,28 @@ def _make_tarball() -> bytes:
     return buffer.getvalue()
 
 
-def _request(method: str, path: str, data: bytes | None = None, headers: dict | None = None):
+_AUTH_HEADERS: dict[str, str] = {}
+
+
+def _login() -> None:
+    """Obtain a JWT bearer token (seeded admin user)."""
+    body = json.dumps({"username": "admin", "password": "admin"}).encode()
     request = urllib.request.Request(
-        f"{BASE}{path}", data=data, headers=headers or {}, method=method
+        f"{BASE}/api/v1/auth/login",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        token = json.load(response)["access_token"]
+    _AUTH_HEADERS["Authorization"] = f"Bearer {token}"
+
+
+def _request(method: str, path: str, data: bytes | None = None, headers: dict | None = None):
+    merged = dict(_AUTH_HEADERS)
+    merged.update(headers or {})
+    request = urllib.request.Request(
+        f"{BASE}{path}", data=data, headers=merged, method=method
     )
     with urllib.request.urlopen(request, timeout=10) as response:
         return response.status, json.load(response) if response.length != 0 else {}
@@ -42,10 +61,12 @@ def _upload(sid: str, filename: str, payload: bytes) -> dict:
         f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
         f"Content-Type: application/gzip\r\n\r\n"
     ).encode() + payload + f"\r\n--{boundary}--\r\n".encode()
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    headers.update(_AUTH_HEADERS)
     request = urllib.request.Request(
         f"{BASE}/api/v1/shipments/{sid}/artifact",
         data=body,
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        headers=headers,
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=15) as response:
@@ -66,6 +87,9 @@ def _wait_for_status(sid: str, want: set[str], timeout: int = 60) -> dict:
 def main() -> int:
     failures: list[str] = []
     version = f"0.0.1-{uuid.uuid4().hex[:8]}"
+
+    _login()
+    print("login: ok")
 
     # 1. Happy path: create -> upload -> worker publishes.
     status, body = _request(
@@ -105,7 +129,9 @@ def main() -> int:
         failures.append(f"published events {types.count('PUBLISHED')}")
 
     # 4. Download integrity.
-    request = urllib.request.Request(f"{BASE}/api/v1/shipments/{sid}/artifact")
+    request = urllib.request.Request(
+        f"{BASE}/api/v1/shipments/{sid}/artifact", headers=dict(_AUTH_HEADERS)
+    )
     with urllib.request.urlopen(request, timeout=10) as response:
         data = response.read()
     digest = hashlib.sha256(data).hexdigest()
@@ -132,6 +158,12 @@ def main() -> int:
     print("retry:", status, retry.get("status"))
     if status != 202:
         failures.append(f"retry {status}")
+
+    # 6. AI incident analysis on the failed shipment.
+    status, analysis = _request("POST", f"/api/v1/shipments/{fid}/analyze", b"")
+    print("analyze:", status, analysis.get("analysis", {}).get("category"), analysis.get("source"))
+    if status != 200 or not analysis.get("advisory"):
+        failures.append(f"analyze {status}")
 
     if failures:
         print("COMPOSE SMOKE FAILED:", failures)

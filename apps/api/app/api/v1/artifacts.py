@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.artifacts import sha256_of
+from app.core.auth import AuthenticatedUser, require
 from app.core.exceptions import AppError
 from app.db.session import get_db
 from app.schemas.artifact import ArtifactRead, ArtifactUploadResponse
@@ -29,6 +30,7 @@ def upload_artifact(
     shipment_id: uuid.UUID,
     file: UploadFile = File(...),
     service: ArtifactService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("artifact:write")),
 ) -> ArtifactUploadResponse:
     """Upload an artifact and queue pipeline processing.
 
@@ -59,6 +61,7 @@ def upload_artifact(
 def download_artifact(
     shipment_id: uuid.UUID,
     service: ArtifactService = Depends(_service),
+    user: AuthenticatedUser = Depends(require("shipment:read")),
 ) -> Response:
     """Download the shipment artifact."""
     shipment, data = service.download(shipment_id)

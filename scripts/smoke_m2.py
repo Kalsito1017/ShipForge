@@ -69,6 +69,15 @@ def main() -> int:
     failures: list[str] = []
     try:
         with httpx.Client(base_url="http://127.0.0.1:8001", timeout=5.0) as client:
+            r = client.post(
+                "/api/v1/auth/login",
+                json={"username": "admin", "password": "admin"},
+            )
+            print("login:", r.status_code)
+            if r.status_code != 200:
+                failures.append(f"login {r.status_code}")
+            else:
+                client.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
             # Happy path: create -> upload -> worker publishes.
             version = f"2.0.0-{uuid.uuid4().hex[:8]}"
             r = client.post(

@@ -7,9 +7,9 @@ from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.core.storage import InMemoryStorage
-from app.db.session import get_session_factory
 from app.services import state_machine as sm
 from tests.conftest import requires_db
 
@@ -34,27 +34,26 @@ def _create_shipment(
     return cast(dict[str, Any], response.json())
 
 
-def _force_status(shipment_id: str, status: str) -> None:
-    """Move a shipment to an arbitrary status via the state machine walk."""
+def _force_status(db_session: Session, shipment_id: str, status: str) -> None:
+    """Move a shipment to an arbitrary status via the state machine walk.
+
+    Uses the test session so it operates on the test database.
+    """
     from app.models.shipment import Shipment
 
-    session = get_session_factory()()
-    try:
-        shipment = session.get(Shipment, uuid.UUID(shipment_id))
-        assert shipment is not None
-        walk = {
-            sm.VALIDATING: [sm.VALIDATING],
-            sm.BUILDING: [sm.VALIDATING, sm.BUILDING],
-            sm.SCANNING: [sm.VALIDATING, sm.BUILDING, sm.SCANNING],
-            sm.READY: [sm.VALIDATING, sm.BUILDING, sm.SCANNING, sm.READY],
-            sm.FAILED: [sm.VALIDATING, sm.BUILDING, sm.FAILED],
-            sm.PUBLISHED: [sm.VALIDATING, sm.BUILDING, sm.SCANNING, sm.READY, sm.PUBLISHED],
-        }[status]
-        for step in walk:
-            sm.transition(session, shipment, step)
-        session.commit()
-    finally:
-        session.close()
+    shipment = db_session.get(Shipment, uuid.UUID(shipment_id))
+    assert shipment is not None
+    walk = {
+        sm.VALIDATING: [sm.VALIDATING],
+        sm.BUILDING: [sm.VALIDATING, sm.BUILDING],
+        sm.SCANNING: [sm.VALIDATING, sm.BUILDING, sm.SCANNING],
+        sm.READY: [sm.VALIDATING, sm.BUILDING, sm.SCANNING, sm.READY],
+        sm.FAILED: [sm.VALIDATING, sm.BUILDING, sm.FAILED],
+        sm.PUBLISHED: [sm.VALIDATING, sm.BUILDING, sm.SCANNING, sm.READY, sm.PUBLISHED],
+    }[status]
+    for step in walk:
+        sm.transition(db_session, shipment, step)
+    db_session.commit()
 
 
 class TestUpload:
@@ -132,9 +131,11 @@ class TestUpload:
         )
         assert response.status_code == 404
 
-    def test_upload_rejected_while_building(self, client: TestClient) -> None:
+    def test_upload_rejected_while_building(
+        self, client: TestClient, db_session: Session
+    ) -> None:
         body = _create_shipment(client)
-        _force_status(body["id"], sm.BUILDING)
+        _force_status(db_session, body["id"], sm.BUILDING)
         response = client.post(
             f"/api/v1/shipments/{body['id']}/artifact",
             files={"file": ("a.tar.gz", _make_tarball(), "application/gzip")},
@@ -173,9 +174,11 @@ class TestPublishEndpoint:
         response = client.post(f"/api/v1/shipments/{body['id']}/publish")
         assert response.status_code == 409
 
-    def test_publish_ready_then_idempotent(self, client: TestClient) -> None:
+    def test_publish_ready_then_idempotent(
+        self, client: TestClient, db_session: Session
+    ) -> None:
         body = _create_shipment(client)
-        _force_status(body["id"], sm.READY)
+        _force_status(db_session, body["id"], sm.READY)
 
         first = client.post(f"/api/v1/shipments/{body['id']}/publish")
         assert first.status_code == 200

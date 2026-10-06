@@ -23,6 +23,7 @@ extend-immutable-calls = [
     "fastapi.File",
     "fastapi.Form",
     "fastapi.Header",
+    "app.core.auth.require",
 ]
 
 [tool.mypy]
