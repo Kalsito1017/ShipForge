@@ -56,9 +56,13 @@ class ShipmentService:
         queue_processing(shipment)
         return shipment
 
-    def get_shipment(self, shipment_id: uuid.UUID) -> Shipment:
-        """Return a shipment or raise NotFoundError."""
-        shipment = self._repo.get(shipment_id)
+    def get_shipment(self, shipment_id: uuid.UUID, *, for_update: bool = False) -> Shipment:
+        """Return a shipment or raise NotFoundError.
+
+        ``for_update`` takes a row lock — use it on paths that transition
+        state so concurrent requests cannot double-apply an event.
+        """
+        shipment = self._repo.get(shipment_id, for_update=for_update)
         if shipment is None:
             raise NotFoundError("Shipment not found", shipment_id=str(shipment_id))
         return shipment
@@ -83,7 +87,7 @@ class ShipmentService:
 
     def retry_shipment(self, shipment_id: uuid.UUID) -> Shipment:
         """Move a FAILED shipment back to VALIDATING and queue processing."""
-        shipment = self.get_shipment(shipment_id)
+        shipment = self.get_shipment(shipment_id, for_update=True)
         if shipment.status != state_machine.FAILED:
             raise ConflictError(
                 f"Only FAILED shipments can be retried (current: {shipment.status})",
@@ -106,7 +110,7 @@ class ShipmentService:
 
         Returns the shipment and whether this call performed the publication.
         """
-        shipment = self.get_shipment(shipment_id)
+        shipment = self.get_shipment(shipment_id, for_update=True)
 
         if shipment.status == state_machine.PUBLISHED:
             return shipment, False

@@ -19,7 +19,11 @@ class ShipmentRepository:
         self._session.flush()
         return shipment
 
-    def get(self, shipment_id: uuid.UUID) -> Shipment | None:
+    def get(self, shipment_id: uuid.UUID, *, for_update: bool = False) -> Shipment | None:
+        """Return a shipment; ``for_update`` takes a row lock (serialize runs)."""
+        if for_update:
+            stmt = select(Shipment).where(Shipment.id == shipment_id).with_for_update()
+            return self._session.scalars(stmt).first()
         return self._session.get(Shipment, shipment_id)
 
     def get_by_product_version(self, product: str, version: str) -> Shipment | None:

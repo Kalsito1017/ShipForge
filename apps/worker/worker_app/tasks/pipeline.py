@@ -11,6 +11,7 @@ from app.db.session import get_session_factory
 from worker_app.celery_app import celery_app
 from worker_app.core.config import get_settings
 from worker_app.observability import (
+    register_structured_logging,
     register_task_signals,
     start_metrics_server,
     start_queue_monitor,
@@ -20,12 +21,29 @@ from worker_app.services.pipeline import PipelineRunner
 logger = get_logger(__name__)
 
 _settings = get_settings()
-configure_logging(service="shipforge-worker", level=_settings.log_level)
+configure_logging(
+    service="shipforge-worker",
+    level=_settings.log_level,
+    extra_loggers=("celery", "celery.worker", "celery.task", "celery.trace", "kombu"),
+)
 
-# Observability: Prometheus exposition + queue depth + task counters.
-start_metrics_server(_settings.metrics_port)
-start_queue_monitor(_settings.redis_url)
-register_task_signals()
+_observability_started = False
+
+
+def start_observability() -> None:
+    """Start metrics exposition, queue gauge and task counters.
+
+    Called explicitly by the worker entrypoint (never at import: healthcheck
+    processes import this module too and must not bind ports or write gauges).
+    """
+    global _observability_started
+    if _observability_started:
+        return
+    start_metrics_server(_settings.metrics_port)
+    start_queue_monitor(_settings.redis_url)
+    register_task_signals()
+    register_structured_logging(_settings.log_level)
+    _observability_started = True
 
 
 def _run_in_session(shipment_id: str) -> dict[str, Any]:

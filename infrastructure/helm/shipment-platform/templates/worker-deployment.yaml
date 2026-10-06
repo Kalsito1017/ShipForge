@@ -28,6 +28,10 @@ spec:
           imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
           securityContext:
             {{- toYaml .Values.worker.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.workerPort }}
+              protocol: TCP
           # Image has no ENTRYPOINT — set the full command explicitly.
           command:
             - celery
@@ -38,6 +42,8 @@ spec:
             - --concurrency={{ .Values.worker.concurrency }}
           env:
             {{- include "shipment-platform.env" . | nindent 12 }}
+            - name: METRICS_PORT
+              value: {{ .Values.metrics.workerPort | quote }}
           readinessProbe:
             exec:
               command:

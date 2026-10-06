@@ -14,9 +14,10 @@ Stage mapping (stage name -> status it runs in -> next status):
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import InvalidTransitionError
@@ -50,8 +51,15 @@ class PipelineRunner:
         self._stages = PipelineStages(session, storage)
 
     def run(self, shipment_id: uuid.UUID) -> dict[str, Any]:
-        """Process a shipment to completion. Safe to call repeatedly."""
-        shipment = self._session.get(Shipment, shipment_id)
+        """Process a shipment to completion. Safe to call repeatedly.
+
+        The shipment row is locked for the duration of the run: concurrent
+        task deliveries (POST /shipments and artifact upload both dispatch)
+        serialize here instead of double-publishing (PLAN.md §15).
+        """
+        shipment = self._session.scalars(
+            select(Shipment).where(Shipment.id == shipment_id).with_for_update()
+        ).first()
         if shipment is None:
             logger.warning(
                 "pipeline: shipment not found",
@@ -160,8 +168,8 @@ class PipelineRunner:
             return
         created = shipment.created_at
         if created.tzinfo is None:
-            created = created.replace(tzinfo=timezone.utc)
-        elapsed = (datetime.now(timezone.utc) - created).total_seconds()
+            created = created.replace(tzinfo=UTC)
+        elapsed = (datetime.now(UTC) - created).total_seconds()
         if elapsed >= 0:
             shipment_processing_duration_seconds.observe(elapsed)
 

@@ -2,8 +2,14 @@
 
 Both processes expose their own registry on a /metrics endpoint; Prometheus
 scrapes both and sums. Names are stable and part of the observability contract.
+
+Celery note: tasks execute in *forked child processes*, whose counter updates
+would be invisible to a registry served by the parent. When
+``PROMETHEUS_MULTIPROC_DIR`` is set (worker bootstrap does this), values are
+written to shared memory files and ``exposition_registry()`` aggregates them.
 """
 
+import os
 from collections.abc import Callable
 from time import monotonic
 
@@ -14,10 +20,13 @@ from prometheus_client import (
     Gauge,
     Histogram,
     generate_latest,
+    multiprocess,
 )
 
 # Registry is per-process; API and worker each expose theirs separately.
 REGISTRY = CollectorRegistry(auto_describe=True)
+
+_MULTIPROC_DIR = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
 
 # --- Shipment lifecycle ---------------------------------------------------
 
@@ -50,6 +59,7 @@ shipment_processing_duration_seconds = Histogram(
 shipment_queue_size = Gauge(
     "shipment_queue_size",
     "Pending pipeline tasks in the Celery queue",
+    multiprocess_mode="mostrecent",
     registry=REGISTRY,
 )
 
@@ -87,9 +97,22 @@ worker_task_failures_total = Counter(
 )
 
 
+def exposition_registry() -> CollectorRegistry:
+    """Registry to serve on /metrics.
+
+    In multiprocess mode (Celery workers) aggregate the shared memory files;
+    otherwise expose this process's own registry.
+    """
+    if _MULTIPROC_DIR:
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]
+        return registry
+    return REGISTRY
+
+
 def render_metrics() -> tuple[bytes, str]:
     """Return (payload, content_type) for a /metrics response."""
-    return generate_latest(REGISTRY), CONTENT_TYPE_LATEST
+    return generate_latest(exposition_registry()), CONTENT_TYPE_LATEST
 
 
 class Timer:
@@ -114,10 +137,12 @@ def observe_request(method: str, path: str, status: int, duration: float) -> Non
     api_request_duration_seconds.labels(method=method, path=path).observe(duration)
 
 
-def timed(histogram: Histogram, **labels: str) -> Callable[[Callable], Callable]:
+def timed(
+    histogram: Histogram, **labels: str
+) -> Callable[[Callable[..., object]], Callable[..., object]]:
     """Decorator observing a callable's duration on the given histogram."""
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., object]) -> Callable[..., object]:
         def wrapper(*args: object, **kwargs: object) -> object:
             with Timer(histogram, **labels):
                 return func(*args, **kwargs)

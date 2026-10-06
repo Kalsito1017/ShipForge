@@ -68,9 +68,13 @@ def storage() -> InMemoryStorage:
     return InMemoryStorage()
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def queued_tasks(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record task dispatches instead of hitting a real Celery broker."""
+    """Record task dispatches instead of hitting a real Celery broker.
+
+    Autouse: no test may ever reach the live queue — a stray dispatch would
+    let the real worker mutate test state.
+    """
     calls: list[Any] = []
 
     def _fake_dispatch(shipment_id: Any) -> str:

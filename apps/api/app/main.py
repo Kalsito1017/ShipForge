@@ -19,9 +19,13 @@ from app.db.session import dispose_engine
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application startup/shutdown with graceful resource cleanup."""
     settings = get_settings()
-    configure_logging(service="shipforge-api", level=settings.log_level)
+    configure_logging(
+        service="shipforge-api",
+        level=settings.log_level,
+        extra_loggers=("uvicorn", "uvicorn.error", "uvicorn.access"),
+    )
     yield
-    dispose_engine
+    dispose_engine()
 
 
 def _route_template(request: Request) -> str:

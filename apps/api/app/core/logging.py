@@ -58,13 +58,27 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
-def configure_logging(service: str, level: str = "INFO") -> None:
-    """Install the JSON formatter on the root logger."""
+def configure_logging(
+    service: str,
+    level: str = "INFO",
+    extra_loggers: tuple[str, ...] = (),
+) -> None:
+    """Install the JSON formatter on the root logger.
+
+    ``extra_loggers`` names (uvicorn, celery, ...) are rewired to the same
+    JSON handler — framework loggers own their handlers otherwise and emit
+    plain text.
+    """
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter(service))
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+    for name in extra_loggers:
+        framework_logger = logging.getLogger(name)
+        framework_logger.handlers = [handler]
+        framework_logger.propagate = False
+        framework_logger.setLevel(level.upper())
 
 
 def get_logger(name: str) -> logging.Logger:
